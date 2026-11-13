@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 560" role="img" aria-label="Class image counts">
+<rect width="1280" height="560" fill="#ffffff"/>
+<text x="24" y="32" font-family="sans-serif" font-size="18" font-weight="700" fill="#17231c">Image counts by observed class folder</text>
+<text x="358" y="72" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Maize/Disease/01_maydis_leaf_blight</text>
+<rect x="370" y="56" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="69" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="100" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Maize/Disease/02_turcicum_leaf_blight</text>
+<rect x="370" y="84" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="97" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="128" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Maize/Disease/03_curvularia_leaf_spot</text>
+<rect x="370" y="112" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="125" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="156" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Maize/Disease/04_sorghum_downy_mildew</text>
+<rect x="370" y="140" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="153" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="184" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Maize/Healthy</text>
+<rect x="370" y="168" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="181" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="212" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Maize/Insect-pests/01_aphid</text>
+<rect x="370" y="196" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="209" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="240" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Maize/Insect-pests/02_fall_armyworm</text>
+<rect x="370" y="224" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="237" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="268" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Maize/Insect-pests/03_FAW_symptoms</text>
+<rect x="370" y="252" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="265" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="296" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Rice/Disease/01_Bacterial_leaf_blight</text>
+<rect x="370" y="280" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="293" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="324" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Rice/Disease/02_Brown_spot</text>
+<rect x="370" y="308" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="321" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="352" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Rice/Disease/03_False_smut</text>
+<rect x="370" y="336" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="349" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="380" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Rice/Disease/04_leaf_sheath_blight</text>
+<rect x="370" y="364" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="377" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="408" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Rice/Healthy</text>
+<rect x="370" y="392" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="405" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="436" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Rice/Insect-pests/05_Leaf_folder</text>
+<rect x="370" y="420" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="433" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="464" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Rice/Insect-pests/06_Rice_skipper</text>
+<rect x="370" y="448" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="461" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+<text x="358" y="492" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Rice/Insect-pests/07_White_stem_borer</text>
+<rect x="370" y="476" width="830.00" height="17" rx="4" fill="#23834f"/>
+<text x="1208.00" y="489" font-family="sans-serif" font-size="11" fill="#374151">52 · 6.1033%</text>
+<text x="358" y="520" text-anchor="end" font-family="sans-serif" font-size="11" fill="#374151">Rice/Insect-pests/08_Yellow_stem_borer</text>
+<rect x="370" y="504" width="798.08" height="17" rx="4" fill="#23834f"/>
+<text x="1176.08" y="517" font-family="sans-serif" font-size="11" fill="#374151">50 · 5.8685%</text>
+</svg>
