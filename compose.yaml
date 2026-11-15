@@ -1,0 +1,13 @@
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8001:8000"
+    environment:
+      CROPLENS_STORAGE_BASE_DIR: /app/storage_data
+      CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}"
+    volumes:
+      - ./apps/api/storage_data:/app/storage_data
+    restart: unless-stopped

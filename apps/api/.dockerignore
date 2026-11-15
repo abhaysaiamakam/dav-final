@@ -1,0 +1,7 @@
+.venv
+storage_data
+.pytest_cache
+__pycache__
+*.py[cod]
+tests
+.DS_Store
