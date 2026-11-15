@@ -261,47 +261,6 @@ def find_symbol(tree: ast.Module, symbol: str) -> ast.AST:
     return node
 
 
-def line_explanation(line: str, line_no: int, node: ast.AST) -> str:
-    """Describe source syntax from its parsed Python structure without rewriting it."""
-    if line_no == getattr(node, "lineno", -1):
-        args = getattr(node, "args", None)
-        names = [arg.arg for arg in args.args] if args else []
-        return f"Defines this function; parameters: {', '.join(names) or 'none'}; its implementation follows."
-    stripped = line.strip()
-    if not stripped:
-        return "Blank line separates source statements."
-    if stripped.startswith("#"):
-        return "Source comment explaining nearby implementation behavior."
-    if stripped.startswith(('"""', "'''")):
-        return "Function docstring: the implementation's own stated purpose or behavior."
-    statement = next((item for item in ast.walk(node) if getattr(item, "lineno", None) == line_no and isinstance(item, (ast.Return, ast.Raise, ast.If, ast.For, ast.AsyncFor, ast.While, ast.With, ast.Try, ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Expr, ast.Assert))), None)
-    if isinstance(statement, ast.Return):
-        return f"Returns `{ast.unparse(statement.value) if statement.value else 'None'}` to the caller."
-    if isinstance(statement, ast.Raise):
-        return f"Raises `{ast.unparse(statement.exc)}` so the caller can handle this failure."
-    if isinstance(statement, ast.If):
-        return f"Branches on `{ast.unparse(statement.test)}`; only the matching branch is executed."
-    if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
-        if isinstance(statement, (ast.For, ast.AsyncFor)):
-            return f"Repeats the nested block with `{ast.unparse(statement.target)}` for each item from `{ast.unparse(statement.iter)}`."
-        return f"Repeats the nested block while `{ast.unparse(statement.test)}` remains true."
-    if isinstance(statement, ast.With):
-        return f"Opens managed context `{ast.unparse(statement.items[0].context_expr)}`; Python closes/cleans it when this block ends."
-    if isinstance(statement, ast.Try):
-        return "Begins guarded execution; following except/finally blocks define failure handling."
-    if isinstance(statement, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
-        target = ", ".join(ast.unparse(item) for item in statement.targets) if isinstance(statement, ast.Assign) else ast.unparse(statement.target)
-        value = ast.unparse(statement.value) if statement.value else "the declared value"
-        return f"Assigns `{target}` from `{value}` for use by subsequent steps."
-    if isinstance(statement, ast.Assert):
-        return "Checks an implementation assumption and raises AssertionError if it is false."
-    if stripped.startswith(("except ", "finally:", "else:", "elif ", "case ")):
-        return "Selects the corresponding exception or control-flow branch."
-    if stripped.endswith(":"):
-        return "Introduces a nested block in the implementation."
-    return "Executes this source expression or call as part of the function's implementation."
-
-
 def without_comment_tokens(source: str) -> str:
     lines = source.splitlines(keepends=True)
     comment_only_rows = {
@@ -350,11 +309,6 @@ def build_phase1_python_manifest() -> None:
                 "return_annotation": return_annotation,
                 "docstring": ast.get_docstring(node),
                 "calls": called,
-                "line_notes": [
-                    {"line": start + offset, "code": text,
-                     "explanation": line_explanation(text, start + offset, node)}
-                    for offset, text in enumerate(function_source.splitlines())
-                ],
             })
         output.append({
             **module,

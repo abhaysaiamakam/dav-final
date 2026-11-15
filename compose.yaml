@@ -11,3 +11,33 @@ services:
     volumes:
       - ./apps/api/storage_data:/app/storage_data
     restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://croplens-api.abhaysaiamakam.workers.dev
+    expose:
+      - "3000"
+    restart: unless-stopped
+
+  gateway:
+    image: caddy:2-alpine
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - api
+      - web
+    restart: unless-stopped
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://gateway:80
+    depends_on:
+      - gateway
+    profiles:
+      - public
+    restart: unless-stopped
