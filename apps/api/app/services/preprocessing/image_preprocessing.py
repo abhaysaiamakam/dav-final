@@ -13,12 +13,17 @@ from __future__ import annotations
 
 import hashlib
 import os
+import json
+import re
 import shutil
+import datetime
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from PIL import Image
+import numpy as np
+from PIL import Image, ImageEnhance, ImageOps
 
 from app.schemas.preprocessing import (
     OperationPreviewResult,
@@ -37,16 +42,23 @@ def _find_image_files(dataset_root: Path, target_file: Optional[str] = None) -> 
     if target_file:
         clean = target_file.lstrip("/\\")
         p = (dataset_root / clean).resolve()
-        if p.is_file() and dataset_root.resolve() in p.parents and p.suffix.lower() in SUPPORTED_IMAGE_EXTS:
+        if p.is_file() and dataset_root.resolve() in p.parents and p.suffix.lower() in SUPPORTED_IMAGE_EXTS and not re.search(r"__aug_\d+$", p.stem):
             return [p]
         return []
 
     found: List[Path] = []
+    root_resolved = dataset_root.resolve()
     for root, _, files in os.walk(str(dataset_root)):
         for f in sorted(files):
             ext = os.path.splitext(f)[1].lower()
-            if ext in SUPPORTED_IMAGE_EXTS:
-                found.append(Path(root) / f)
+            if ext in SUPPORTED_IMAGE_EXTS and not re.search(r"__aug_\d+$", Path(f).stem):
+                candidate = Path(root) / f
+                try:
+                    resolved = candidate.resolve()
+                    if root_resolved in resolved.parents and resolved.is_file():
+                        found.append(candidate)
+                except OSError:
+                    continue
     found.sort()
     return found
 
@@ -58,6 +70,166 @@ def _sha256_file(path: Path) -> str:
         while chunk := f.read(65536):
             h.update(chunk)
     return h.hexdigest()
+
+
+class AugmentImagesOperation(BasePreprocessingOperation):
+    """Create seeded, class-path-preserving augmented derivatives in an isolated version copy."""
+
+    TYPES = {"horizontal_flip", "vertical_flip", "rotate", "random_crop", "zoom", "brightness", "contrast", "saturation", "gaussian_noise"}
+
+    @property
+    def operation_type(self) -> PreprocessingOperationType:
+        return PreprocessingOperationType.AUGMENT_IMAGES
+
+    @property
+    def modality(self) -> PreprocessingModality:
+        return PreprocessingModality.IMAGE
+
+    @property
+    def display_name(self) -> str:
+        return "Create Image Augmentations"
+
+    @property
+    def description(self) -> str:
+        return "Creates deterministic augmented copies under the same class folders; originals remain unchanged in the source version."
+
+    @property
+    def known_limitations(self) -> List[str]:
+        return ["Augmentations are generic image transforms and may alter disease cues or labels; review samples before model use.", "No segmentation or leaf-background validation is performed."]
+
+    @property
+    def parameters_schema(self) -> Dict[str, Any]:
+        return {"type": "object", "required": ["augmentations"], "properties": {
+            "augmentations": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["type"], "properties": {"type": {"enum": sorted(self.TYPES)}, "degrees": {"type": "number"}, "factor": {"type": "number"}, "fraction": {"type": "number"}, "value": {"type": "number"}, "sigma": {"type": "number"}}}},
+            "copies_per_image": {"type": "integer", "minimum": 1, "maximum": 20, "default": 1},
+            "seed": {"type": "integer", "default": 42}, "max_images": {"type": "integer", "minimum": 1, "maximum": 100000, "default": 10000},
+            "output_format": {"type": "string", "enum": ["original", "png", "jpeg", "webp"], "default": "original"},
+        }}
+
+    def validate_parameters(self, config: PreprocessingOperationConfig) -> List[str]:
+        params = config.parameters
+        errors = []
+        def check_number(value, label: str, minimum: float, maximum: float):
+            try:
+                parsed = float(value)
+                if not math.isfinite(parsed) or not minimum <= parsed <= maximum:
+                    errors.append(f"{label} must be between {minimum:g} and {maximum:g}.")
+            except (TypeError, ValueError):
+                errors.append(f"{label} must be a finite number.")
+        operations = params.get("augmentations")
+        if not isinstance(operations, list) or not operations:
+            return ["'augmentations' must be a non-empty list of transform specifications."]
+        for index, operation in enumerate(operations):
+            if not isinstance(operation, dict) or operation.get("type") not in self.TYPES:
+                errors.append(f"augmentations[{index}].type must be one of {', '.join(sorted(self.TYPES))}.")
+                continue
+            kind = operation["type"]
+            prefix = f"augmentations[{index}]"
+            if kind == "rotate": check_number(operation.get("degrees", 15), f"{prefix}.degrees", -180, 180)
+            if kind == "zoom": check_number(operation.get("factor", 1.2), f"{prefix}.factor", 1, 4)
+            if kind == "random_crop": check_number(operation.get("fraction", 0.8), f"{prefix}.fraction", 0.2, 1)
+            if kind in {"brightness", "contrast", "saturation"}: check_number(operation.get("value", 1.1), f"{prefix}.value", 0, 3)
+            if kind == "gaussian_noise": check_number(operation.get("sigma", 8), f"{prefix}.sigma", 0, 64)
+        try:
+            copies = int(params.get("copies_per_image", 1))
+            if not 1 <= copies <= 20: errors.append("'copies_per_image' must be between 1 and 20.")
+        except (TypeError, ValueError): errors.append("'copies_per_image' must be an integer between 1 and 20.")
+        try:
+            maximum = int(params.get("max_images", 10000))
+            if not 1 <= maximum <= 100000: errors.append("'max_images' must be between 1 and 100000.")
+        except (TypeError, ValueError): errors.append("'max_images' must be an integer between 1 and 100000.")
+        if params.get("output_format", "original") not in {"original", "png", "jpeg", "webp"}:
+            errors.append("'output_format' must be original, png, jpeg, or webp.")
+        return errors
+
+    @staticmethod
+    def _transform(image: Image.Image, operations: List[Dict[str, Any]], rng: np.random.Generator) -> Image.Image:
+        output = image.convert("RGB")
+        for operation in operations:
+            kind = operation["type"]
+            if kind == "horizontal_flip": output = ImageOps.mirror(output)
+            elif kind == "vertical_flip": output = ImageOps.flip(output)
+            elif kind == "rotate": output = output.rotate(float(operation.get("degrees", 15)), resample=Image.Resampling.BICUBIC, expand=False)
+            elif kind in {"random_crop", "zoom"}:
+                width, height = output.size
+                fraction = float(operation.get("fraction", 0.8)) if kind == "random_crop" else 1 / float(operation.get("factor", 1.2))
+                crop_w, crop_h = max(1, int(width * fraction)), max(1, int(height * fraction))
+                left = int(rng.integers(0, max(1, width - crop_w + 1)))
+                top = int(rng.integers(0, max(1, height - crop_h + 1)))
+                output = output.crop((left, top, left + crop_w, top + crop_h)).resize((width, height), Image.Resampling.BICUBIC)
+            elif kind == "brightness": output = ImageEnhance.Brightness(output).enhance(float(operation.get("value", 1.1)))
+            elif kind == "contrast": output = ImageEnhance.Contrast(output).enhance(float(operation.get("value", 1.1)))
+            elif kind == "saturation": output = ImageEnhance.Color(output).enhance(float(operation.get("value", 1.1)))
+            elif kind == "gaussian_noise":
+                pixels = np.asarray(output, dtype=np.float32)
+                noise = rng.normal(0, float(operation.get("sigma", 8)), pixels.shape)
+                output = Image.fromarray(np.clip(pixels + noise, 0, 255).astype(np.uint8), "RGB")
+        return output
+
+    def preview(self, dataset_root: Path, config: PreprocessingOperationConfig) -> OperationPreviewResult:
+        errors = self.validate_parameters(config)
+        if errors:
+            return OperationPreviewResult(operation_type=self.operation_type, status="invalid", validation_errors=errors)
+        images = _find_image_files(dataset_root, config.target_file)
+        if not images:
+            return OperationPreviewResult(operation_type=self.operation_type, status="invalid", validation_errors=["No decodable images found to augment."])
+        samples = []
+        for path in images[:3]:
+            try:
+                with Image.open(path) as image:
+                    samples.append({"file": path.relative_to(dataset_root).as_posix(), "width": image.width, "height": image.height,
+                                    "augmentation_types": [item["type"] for item in config.parameters["augmentations"]]})
+            except Exception:
+                continue
+        limit = min(len(images), int(config.parameters.get("max_images", 10000)))
+        outputs = limit * int(config.parameters.get("copies_per_image", 1))
+        return OperationPreviewResult(operation_type=self.operation_type, status="valid", affected_files=[item["file"] for item in samples],
+            files_before=len(images), files_after=len(images)+outputs, sample_before=samples, sample_after=samples,
+            before_metrics={"source_images_selected": limit}, after_metrics={"derived_images_to_create": outputs, "seed": int(config.parameters.get("seed", 42)), "output_format": config.parameters.get("output_format", "original")},
+            warnings=self.known_limitations)
+
+    def apply(self, dataset_root: Path, config: PreprocessingOperationConfig) -> Dict[str, Any]:
+        errors = self.validate_parameters(config)
+        if errors:
+            raise ValueError("; ".join(errors))
+        params = config.parameters
+        images = _find_image_files(dataset_root, config.target_file)[:int(params.get("max_images", 10000))]
+        augmentations = params["augmentations"]
+        copies = int(params.get("copies_per_image", 1))
+        seed = int(params.get("seed", 42))
+        output_format = params.get("output_format", "original")
+        generated = []
+        manifest_path = dataset_root / ".croplens" / "augmentation_manifest.json"
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else {"schema_version": "1.0", "records": []}
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        for source in images:
+            relative = source.relative_to(dataset_root)
+            stable_seed = seed + int(hashlib.sha256(relative.as_posix().encode()).hexdigest()[:8], 16)
+            try:
+                with Image.open(source) as opened:
+                    original = ImageOps.exif_transpose(opened).convert("RGB")
+                for index in range(copies):
+                    rng = np.random.default_rng(stable_seed + index)
+                    derivative = self._transform(original, augmentations, rng)
+                    fmt = output_format if output_format != "original" else (source.suffix.lower().lstrip(".") or "png")
+                    fmt = {"jpg": "jpeg", "jpe": "jpeg"}.get(fmt, fmt)
+                    ext = ".jpg" if fmt == "jpeg" else f".{fmt}"
+                    target = source.with_name(f"{source.stem}__aug_{index+1}{ext}")
+                    save_fmt = {"jpeg": "JPEG", "png": "PNG", "webp": "WEBP", "bmp": "BMP", "tif": "TIFF", "tiff": "TIFF"}.get(fmt)
+                    if not save_fmt:
+                        raise ValueError(f"Unsupported output format: {fmt}")
+                    derivative.save(target, format=save_fmt)
+                    output_rel = target.relative_to(dataset_root).as_posix()
+                    generated.append(output_rel)
+                    manifest["records"].append({"source_relative_path": relative.as_posix(), "derived_relative_path": output_rel,
+                        "operation": self.operation_type.value, "augmentations": augmentations, "seed": seed, "image_seed": stable_seed + index,
+                        "executed_at": now, "output_format": save_fmt})
+            except Exception:
+                continue
+        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        return {"affected_rows": 0, "affected_columns": [], "affected_files": generated, "files_before": len(images),
+                "files_after": len(images)+len(generated), "warnings": self.known_limitations + ([f"{len(images)*copies-len(generated)} requested derivative(s) failed to generate."] if len(generated) < len(images)*copies else [])}
 
 
 # ---------------------------------------------------------------------------

@@ -393,15 +393,23 @@ class DatasetService:
             raise DatasetNotFoundError(dataset_id)
 
         selected_version_id = version_id or dataset.current_version_id
-        from app.services.analysis_service import analysis_service
-        analysis = analysis_service.get_latest_analysis_for_dataset(dataset_id, selected_version_id)
-        if analysis and analysis.validation:
-            dataset = dataset.model_copy(update={"validation": analysis.validation})
-        else:
-            scoped = self._version_scope.get()
-            if scoped and scoped[0] == dataset_id and scoped[1] == selected_version_id and scoped[2].validation:
-                dataset = dataset.model_copy(update={"validation": scoped[2].validation})
-            elif selected_version_id is not None or dataset.validation is None:
+        scoped = self._version_scope.get()
+        # Prefer the validation attached to the active registry snapshot for
+        # unversioned curated datasets and the current live version. A stale
+        # cached analysis must not replace freshly validated paths from a test
+        # or dataset-root change. Historical versions still require the exact
+        # version-scoped analysis artifact.
+        current_snapshot = dataset.validation is not None and (
+            selected_version_id is None or selected_version_id == dataset.current_version_id
+        )
+        if scoped and scoped[0] == dataset_id and scoped[1] == selected_version_id and scoped[2].validation:
+            dataset = dataset.model_copy(update={"validation": scoped[2].validation})
+        elif not current_snapshot:
+            from app.services.analysis_service import analysis_service
+            analysis = analysis_service.get_latest_analysis_for_dataset(dataset_id, selected_version_id)
+            if analysis and analysis.validation:
+                dataset = dataset.model_copy(update={"validation": analysis.validation})
+            else:
                 raise DatasetNotValidatedError(dataset_id)
 
         result = duplicate_detection_service.detect_duplicates(

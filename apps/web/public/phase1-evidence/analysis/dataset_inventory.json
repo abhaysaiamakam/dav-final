@@ -405,5 +405,12 @@
     ],
     "limitation": "Color histogram PCA shows coarse color-distribution variation only; it does not establish disease separation or classification performance."
   },
-  "label_note": "Folder labels are reported as observed; confirm the archive's labeling convention before treating them as ground truth."
+  "label_note": "Folder labels are reported as observed; confirm the archive's labeling convention before treating them as ground truth.",
+  "extension_counts": {
+    ".jpg": 852
+  },
+  "extension_format_pairs": {
+    ".jpg → JPEG": 802,
+    ".jpg → MPO": 50
+  }
 }

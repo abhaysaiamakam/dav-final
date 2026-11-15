@@ -43,6 +43,7 @@ export interface UnifiedAnalysisMetrics {
 export interface UnifiedAnalysisResult {
   id: string;
   dataset_id: string;
+  version_id?: string | null;
   dataset_name: string;
   status: AnalysisStatus;
   created_at: string;

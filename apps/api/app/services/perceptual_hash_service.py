@@ -5,6 +5,7 @@ import imagehash
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.schemas.dataset import PerceptualHashAlgorithm
+from app.services.safe_image_decoder import draft_for_preview, open_image
 
 
 class PerceptualHashService:
@@ -58,7 +59,8 @@ class PerceptualHashService:
         Compute perceptual hash string (hex digest) for an image file.
         Preserves original image files (strictly read-only).
         """
-        with Image.open(file_path) as raw_img:
+        with open_image(file_path) as raw_img:
+            draft_for_preview(raw_img, 512)
             processed = self.preprocess_image(raw_img)
 
             if algorithm == PerceptualHashAlgorithm.PHASH:

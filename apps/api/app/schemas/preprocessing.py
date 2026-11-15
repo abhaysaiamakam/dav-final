@@ -37,6 +37,7 @@ class PreprocessingOperationType(str, enum.Enum):
     RESIZE_IMAGES = "resize_images"
     CONVERT_FORMAT = "convert_format"
     CONVERT_COLOR_MODE = "convert_color_mode"
+    AUGMENT_IMAGES = "augment_images"
     REMOVE_EXACT_DUPLICATES = "remove_exact_duplicates"
     EXCLUDE_CORRUPT_IMAGES = "exclude_corrupt_images"
     FILTER_CLASSES = "filter_classes"

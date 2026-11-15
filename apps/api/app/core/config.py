@@ -87,7 +87,10 @@ class Settings(BaseSettings):
     DUCKDB_HYBRID_ROW_THRESHOLD: int = 25_000
     PREVIEW_SAMPLE_ROW_LIMIT: int = 1_000
     VISUALIZATION_SAMPLE_ROW_LIMIT: int = 20_000
-    MAX_IMAGE_DECODE_PIXELS: int = 25_000_000  # 25 MP (~5000x5000)
+    # Evidence-based hard ceiling: curated ICAR includes 64.2 MP JPEGs. JPEG
+    # callers downsample in the decoder before materializing RGB pixels; other
+    # formats remain bounded by this per-image pixel ceiling.
+    MAX_IMAGE_DECODE_PIXELS: int = 70_000_000
     THUMBNAIL_MAX_DIMENSION: int = 300
     EXPORT_STREAM_CHUNK_SIZE: int = 64 * 1024  # 64 KB
     MAX_CONCURRENT_IMAGE_PROCESSING: int = 16

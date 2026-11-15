@@ -59,12 +59,13 @@ class PreprocessingService:
         unsafe = {
             PreprocessingOperationType.RESIZE_IMAGES,
             PreprocessingOperationType.CONVERT_FORMAT,
+            PreprocessingOperationType.AUGMENT_IMAGES,
         }
         if not any(operation.operation_type in unsafe for operation in operations):
             return
         if _find_coco_files(dataset_root) or _find_yolo_files(dataset_root):
             raise PreprocessingValidationError(
-                "Resize and format conversion are unavailable for COCO/YOLO-linked images until the linked annotations can be updated safely."
+                "Resize, format conversion, and augmentation are unavailable for COCO/YOLO-linked images until linked annotations can be updated safely."
             )
 
     def get_available_operations(self, dataset_id: str) -> AvailableOperationsResponse:

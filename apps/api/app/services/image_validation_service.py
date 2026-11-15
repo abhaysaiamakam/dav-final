@@ -15,6 +15,7 @@ from app.schemas.dataset import (
 )
 from app.services.dataset_discovery_service import dataset_discovery_service
 from app.storage.base import StorageBackend
+from app.services.safe_image_decoder import draft_for_preview, open_image
 
 # Enforce strict decoding: do not globally allow truncated images
 ImageFile.LOAD_TRUNCATED_IMAGES = False
@@ -127,10 +128,11 @@ class ImageValidationService:
 
         # Stage 1: Header verification with Image.verify()
         try:
-            with Image.open(file_path) as img:
+            with open_image(file_path) as img:
                 fmt = img.format
                 mode = img.mode
                 width, height = img.size
+                draft_for_preview(img, 5000)
                 img.verify()
         except UnidentifiedImageError as exc:
             return ImageValidationRecord(
@@ -139,12 +141,19 @@ class ImageValidationService:
                 status=ValidationStatus.CORRUPT,
                 error_message=f"Unidentified image format or malformed header: {exc}",
             )
-        except (OSError, SyntaxError) as exc:
+        except OSError as exc:
             return ImageValidationRecord(
                 relative_path=rel_path_str,
                 file_size_bytes=file_size,
                 status=ValidationStatus.CORRUPT,
                 error_message=f"Malformed image header: {exc}",
+            )
+        except (SyntaxError, ValueError) as exc:
+            return ImageValidationRecord(
+                relative_path=rel_path_str, file_size_bytes=file_size,
+                format=fmt, width=width, height=height,
+                status=ValidationStatus.METADATA_ERROR,
+                error_message=f"Image metadata/header error: {type(exc).__name__}: {exc}",
             )
         except PermissionError as exc:
             return ImageValidationRecord(
@@ -152,6 +161,13 @@ class ImageValidationService:
                 file_size_bytes=file_size,
                 status=ValidationStatus.UNREADABLE,
                 error_message=f"Permission denied reading image: {exc}",
+            )
+        except Image.DecompressionBombError as exc:
+            return ImageValidationRecord(
+                relative_path=rel_path_str, file_size_bytes=file_size,
+                format=fmt, width=width, height=height,
+                status=ValidationStatus.ERROR,
+                error_message=f"Decoder pixel safety limit: {exc}",
             )
         except Exception as exc:
             return ImageValidationRecord(
@@ -163,11 +179,11 @@ class ImageValidationService:
 
         # Stage 2: Full pixel stream decode via load() to detect truncated byte streams
         try:
-            with Image.open(file_path) as img:
+            with open_image(file_path) as img:
+                draft_for_preview(img, 5000)
                 img.load()
                 fmt = img.format or fmt
                 mode = img.mode or mode
-                width, height = img.size
 
                 # Determine channel count safely
                 channels: Optional[int] = None
@@ -216,6 +232,13 @@ class ImageValidationService:
                     channels=channels,
                     status=ValidationStatus.VALID,
                 )
+        except Image.DecompressionBombError as exc:
+            return ImageValidationRecord(
+                relative_path=rel_path_str, file_size_bytes=file_size,
+                format=fmt, width=width, height=height,
+                status=ValidationStatus.ERROR,
+                error_message=f"Decoder pixel safety limit: {exc}",
+            )
         except (OSError, SyntaxError) as exc:
             return ImageValidationRecord(
                 relative_path=rel_path_str,
@@ -257,6 +280,7 @@ class ImageValidationService:
         total_corrupt = 0
         total_unreadable = 0
         total_errors = 0
+        total_metadata_errors = 0
         total_unsupported = 0
 
         color_mode_counts: Dict[str, int] = {}
@@ -323,6 +347,12 @@ class ImageValidationService:
                     )
                 elif record.status == ValidationStatus.UNSUPPORTED:
                     total_unsupported += 1
+                elif record.status == ValidationStatus.METADATA_ERROR:
+                    total_metadata_errors += 1
+                    corrupted_files.append(record)
+                    warnings.append(
+                        f"Image metadata error on {record.relative_path}: {record.error_message}"
+                    )
                 else:
                     total_errors += 1
                     corrupted_files.append(record)
@@ -362,6 +392,7 @@ class ImageValidationService:
             total_corrupted_images=total_corrupt,
             total_unreadable_images=total_unreadable,
             total_processing_errors=total_errors,
+            total_metadata_errors=total_metadata_errors,
             total_unsupported_files=total_unsupported,
             validation_timestamp=now,
             dimension_summary=dimension_summary,

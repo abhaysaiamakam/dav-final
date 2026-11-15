@@ -8,6 +8,7 @@ import type {
   DatasetListResponse,
   DatasetDiscoveryResult,
   DatasetMetadata,
+  DatasetValidationResult,
   DatasetReadinessAssessment,
   DatasetUploadResponse,
   DatasetVersionListResponse,
@@ -38,6 +39,8 @@ import type {
   ExportCreateRequest,
   ExportJob,
   DuplicateAnalysisResult,
+  ImageIntelligenceResponse,
+  UnifiedAnalysisResult,
 } from "@croplens/shared-types";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
@@ -79,14 +82,19 @@ export const apiClient = {
   getDatasets: () => request<DatasetListResponse>("/datasets"),
   getDataset: (id: string) => request<DatasetMetadata>(`/datasets/${encodeURIComponent(id)}`),
   getDatasetVersions: (id: string) => request<DatasetVersionListResponse>(`/datasets/${encodeURIComponent(id)}/versions`),
+  getVersionValidation: (datasetId: string, versionId: string) => request<DatasetValidationResult>(`/datasets/${encodeURIComponent(datasetId)}/versions/${encodeURIComponent(versionId)}/validation`),
   getImages: (datasetId: string, versionId: string, options: { page?: number; page_size?: number; class_name?: string; crop?: string; annotation_class_id?: string; search?: string; sort_by?: "filename" | "file_size" | "width" | "height"; descending?: boolean } = {}) => {
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(options)) if (value !== undefined && value !== "") query.set(key, String(value));
     return request<DatasetImageListResponse>(`/datasets/${encodeURIComponent(datasetId)}/versions/${encodeURIComponent(versionId)}/images?${query.toString()}`);
   },
   getImage: (datasetId: string, versionId: string, imageId: string) => request<DatasetImageListResponse["items"][number]>(`/datasets/${encodeURIComponent(datasetId)}/versions/${encodeURIComponent(versionId)}/images/${encodeURIComponent(imageId)}`),
+  analyzeImageIntelligence: (datasetId: string, versionId: string) => request<ImageIntelligenceResponse>(`/datasets/${encodeURIComponent(datasetId)}/versions/${encodeURIComponent(versionId)}/image-intelligence`, json({})),
+  runUnifiedAnalysis: (datasetId: string, forceRefresh = false) => request<UnifiedAnalysisResult>("/analyses", json({ dataset_id: datasetId, config: { force_refresh: forceRefresh, include_near_duplicates: true } })),
+  getImageIntelligence: (datasetId: string, versionId: string) => request<ImageIntelligenceResponse>(`/datasets/${encodeURIComponent(datasetId)}/versions/${encodeURIComponent(versionId)}/image-intelligence`),
   getImageAnnotations: (datasetId: string, versionId: string, imageId: string) => request<ImageAnnotationResponse>(`/datasets/${encodeURIComponent(datasetId)}/versions/${encodeURIComponent(versionId)}/images/${encodeURIComponent(imageId)}/annotations`),
   imageAssetUrl: (path: string) => `${API_BASE}${path}`,
+  imageVisualPreviewUrl: (datasetId: string, versionId: string, imageId: string, operation: "grayscale" | "sobel" | "canny" | "segmentation") => `${API_BASE}/api/v1/datasets/${encodeURIComponent(datasetId)}/versions/${encodeURIComponent(versionId)}/images/${encodeURIComponent(imageId)}/visual-preview?operation=${operation}`,
   previewImagePreprocessing: (datasetId: string, versionId: string, imageId: string, operation: ImagePreviewOperation) => request<ImagePreprocessingPreviewResponse>(`/datasets/${encodeURIComponent(datasetId)}/versions/${encodeURIComponent(versionId)}/images/${encodeURIComponent(imageId)}/preprocessing-preview`, json({ operation: { ...operation, modality: "image" } })),
   discoverDataset: (id: string) => request<DatasetDiscoveryResult>(`/datasets/${encodeURIComponent(id)}/discover`, { method: "POST" }),
   validateDataset: (id: string) => request<NonNullable<DatasetMetadata["validation"]>>(`/datasets/${encodeURIComponent(id)}/validate`, { method: "POST" }),
@@ -121,9 +129,9 @@ export const apiClient = {
   listJobs: () => request<JobListResponse>("/jobs"),
   getJob: (id: string) => request<ProcessingJob>(`/jobs/${encodeURIComponent(id)}`),
   retryJob: (id: string) => request<ProcessingJob>(`/jobs/${encodeURIComponent(id)}/retry`, { method: "POST" }),
-  assessQuality: (id: string, version?: string) => request<DataQualityAssessment>(`/datasets/${encodeURIComponent(id)}/quality-assessments${version ? `?version_id=${encodeURIComponent(version)}` : ""}`, { method: "POST" }),
+  assessQuality: (id: string, version?: string) => request<DataQualityAssessment>(`/datasets/${encodeURIComponent(id)}/quality-assessments?force_refresh=true${version ? `&version_id=${encodeURIComponent(version)}` : ""}`, { method: "POST" }),
   getQuality: (id: string, version?: string) => request<DataQualityAssessment>(`/datasets/${encodeURIComponent(id)}/quality-assessment${version ? `?version_id=${encodeURIComponent(version)}` : ""}`),
-  runEda: (id: string, version?: string) => request<EdaReport>(`/datasets/${encodeURIComponent(id)}/eda${version ? `?version_id=${encodeURIComponent(version)}` : ""}`, { method: "POST" }),
+  runEda: (id: string, version?: string) => request<EdaReport>(`/datasets/${encodeURIComponent(id)}/eda?force_refresh=true${version ? `&version_id=${encodeURIComponent(version)}` : ""}`, { method: "POST" }),
   getEda: (id: string, version?: string) => request<EdaReport>(`/datasets/${encodeURIComponent(id)}/eda${version ? `?version_id=${encodeURIComponent(version)}` : ""}`),
   getVisualizations: (id: string, version?: string) => request<VisualizationCollectionResponse>(version
     ? `/datasets/${encodeURIComponent(id)}/versions/${encodeURIComponent(version)}/visualizations`

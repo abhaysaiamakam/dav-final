@@ -26,6 +26,7 @@ export type ValidationStatus =
   | 'corrupt'
   | 'unreadable'
   | 'unsupported'
+  | 'metadata_error'
   | 'error';
 
 export interface ClassDiscoveryInfo {
@@ -84,6 +85,7 @@ export interface DatasetValidationResult {
   total_corrupted_images: number;
   total_unreadable_images: number;
   total_processing_errors: number;
+  total_metadata_errors?: number;
   total_unsupported_files: number;
   validation_timestamp: string;
   dimension_summary: DimensionSummary | null;
@@ -98,6 +100,9 @@ export interface DuplicateImageMember {
   relative_path: string;
   class_name: string;
   file_size_bytes: number;
+  width?: number | null;
+  height?: number | null;
+  format?: string | null;
   is_representative: boolean;
 }
 

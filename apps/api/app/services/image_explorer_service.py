@@ -13,7 +13,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.core.errors import DatasetNotFoundError, VersionNotFoundError
 from app.schemas.image_explorer import (
@@ -30,6 +30,7 @@ from app.services.dataset_service import dataset_service
 from app.services.image_thumbnail_service import image_thumbnail_service
 from app.services.preprocessing.preprocessing_registry import preprocessing_registry
 from app.storage.local import storage_backend
+from app.services.safe_image_decoder import draft_for_preview, open_image, source_dimensions
 
 
 class ImageExplorerService:
@@ -41,6 +42,7 @@ class ImageExplorerService:
         PreprocessingOperationType.RESIZE_IMAGES,
         PreprocessingOperationType.CONVERT_FORMAT,
         PreprocessingOperationType.CONVERT_COLOR_MODE,
+        PreprocessingOperationType.AUGMENT_IMAGES,
     }
 
     def _version_root(self, dataset_id: str, version_id: str) -> Path:
@@ -143,14 +145,21 @@ class ImageExplorerService:
             width = height = None
             fmt = mode = None
             status = "valid"
+            error_message = None
             try:
-                with Image.open(path) as image:
+                with open_image(path) as image:
+                    source_dimensions(image)
                     width, height, fmt, mode = image.width, image.height, image.format, image.mode
                     image.verify()
-            except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
+            except Image.DecompressionBombError as exc:
+                status = "error"
+                error_message = f"Decoder pixel safety limit: {exc}"
+            except (UnidentifiedImageError, OSError, ValueError) as exc:
                 status = "corrupt"
-            except Exception:
+                error_message = f"Image metadata/decode error: {type(exc).__name__}: {exc}"
+            except Exception as exc:
                 status = "unreadable"
+                error_message = f"Image inspection error: {type(exc).__name__}: {exc}"
             image_id = self._id(relative)
             base = f"/api/v1/datasets/{dataset_id}/versions/{version_id}/images/{image_id}"
             items.append(DatasetImage(
@@ -163,6 +172,7 @@ class ImageExplorerService:
                 format=fmt,
                 color_mode=mode,
                 status=status,
+                error_message=error_message,
                 thumbnail_url=f"{base}/thumbnail",
                 preview_url=f"{base}/preview",
             ))
@@ -194,14 +204,21 @@ class ImageExplorerService:
         width = height = None
         fmt = mode = None
         status = "valid"
+        error_message = None
         try:
-            with Image.open(path) as image:
+            with open_image(path) as image:
+                source_dimensions(image)
                 width, height, fmt, mode = image.width, image.height, image.format, image.mode
                 image.verify()
-        except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
+        except Image.DecompressionBombError as exc:
+            status = "error"
+            error_message = f"Decoder pixel safety limit: {exc}"
+        except (UnidentifiedImageError, OSError, ValueError) as exc:
             status = "corrupt"
-        except Exception:
+            error_message = f"Image metadata/decode error: {type(exc).__name__}: {exc}"
+        except Exception as exc:
             status = "unreadable"
+            error_message = f"Image inspection error: {type(exc).__name__}: {exc}"
         base = f"/api/v1/datasets/{dataset_id}/versions/{version_id}/images/{image_id}"
         return DatasetImage(
             image_id=image_id,
@@ -213,6 +230,7 @@ class ImageExplorerService:
             format=fmt,
             color_mode=mode,
             status=status,
+            error_message=error_message,
             thumbnail_url=f"{base}/thumbnail",
             preview_url=f"{base}/preview",
         )
@@ -396,8 +414,9 @@ class ImageExplorerService:
 
     @staticmethod
     def _thumbnail_data_url(path: Path, max_dim: int = 640) -> str:
-        with Image.open(path) as image:
-            image = image.convert("RGB")
+        with open_image(path) as image:
+            draft_for_preview(image, max_dim)
+            image = ImageOps.exif_transpose(image).convert("RGB")
             image.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
             buffer = io.BytesIO()
             image.save(buffer, "JPEG", quality=85, optimize=True)
@@ -407,15 +426,16 @@ class ImageExplorerService:
     def preview_preprocessing(self, dataset_id: str, version_id: str, image_id: str, config):
         source = self.image_path(dataset_id, version_id, image_id)
         if config.operation_type not in self.PREVIEW_OPERATIONS:
-            raise ValueError("Image preview currently supports resize, format conversion, and color conversion")
+            raise ValueError("Image preview supports resize, format conversion, color conversion, and augmentations")
         handler = preprocessing_registry.get_operation(config.operation_type)
         config.modality = PreprocessingModality.IMAGE
         annotation_format, _, _ = self._annotation_index(str(self._version_root(dataset_id, version_id).resolve()))
         if annotation_format != "none" and config.operation_type in {
             PreprocessingOperationType.RESIZE_IMAGES,
             PreprocessingOperationType.CONVERT_FORMAT,
+            PreprocessingOperationType.AUGMENT_IMAGES,
         }:
-            raise ValueError("Resize and format conversion are blocked for annotation-linked datasets until linked labels can be updated safely")
+            raise ValueError("Resize, format conversion, and augmentation are blocked for annotation-linked datasets until linked labels can be updated safely")
         errors = handler.validate_parameters(config)
         if errors:
             raise ValueError("; ".join(errors))
@@ -425,15 +445,23 @@ class ImageExplorerService:
         with tempfile.TemporaryDirectory(prefix="croplens-image-preview-") as tmp:
             root = Path(tmp)
             relative = source.relative_to(self._version_root(dataset_id, version_id))
-            target = root / relative
+            target = (root / relative).with_suffix(".jpg")
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
-            config.target_file = relative.as_posix()
+            # The preview operation runs on a display-sized temporary derivative.
+            # Applying preview transformations to full 64 MP source rasters can
+            # allocate hundreds of MiB and is unnecessary for judge-facing evidence.
+            with open_image(source) as original:
+                draft_for_preview(original, 1024)
+                proxy = ImageOps.exif_transpose(original).convert("RGB")
+                proxy.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+                proxy.save(target, format="JPEG", quality=90)
+                proxy.close()
+            config.target_file = target.relative_to(root).as_posix()
             handler.apply(root, config)
             results = sorted(path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in self.SUPPORTED)
             if not results:
                 raise ValueError("The preprocessing operation did not produce an image preview")
-            output = results[0]
+            output = next((path for path in results if path != target), results[0])
             return ImagePreprocessingPreviewResponse(
                 dataset_id=dataset_id,
                 version_id=version_id,

@@ -21,6 +21,7 @@ class DatasetImage(BaseModel):
     format: Optional[str] = None
     color_mode: Optional[str] = None
     status: str = "valid"
+    error_message: Optional[str] = None
     thumbnail_url: str
     preview_url: str
 

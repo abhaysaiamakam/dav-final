@@ -302,6 +302,26 @@ async def get_dataset_validation(dataset_id: str) -> DatasetValidationResult:
     return dataset_service.get_validation_result(dataset_id)
 
 
+@router.get(
+    "/{dataset_id}/versions/{version_id}/validation",
+    response_model=DatasetValidationResult,
+    summary="Get Validation for an Exact Dataset Version",
+)
+async def get_version_validation(dataset_id: str, version_id: str) -> DatasetValidationResult:
+    """Retrieve the validation artifact embedded in the exact version's unified analysis."""
+    if not dataset_service.get_dataset(dataset_id):
+        raise DatasetNotFoundError(dataset_id)
+    if not dataset_service.get_version(dataset_id, version_id):
+        raise VersionNotFoundError(dataset_id, version_id)
+
+    from app.services.analysis_service import analysis_service
+
+    analysis = analysis_service.get_latest_analysis_for_dataset(dataset_id, version_id)
+    if not analysis or not analysis.validation:
+        raise DatasetAnalysisNotFoundError(f"{dataset_id}/{version_id} (validation not yet completed)")
+    return analysis.validation
+
+
 @router.post(
     "/{dataset_id}/duplicates/detect",
     response_model=DuplicateAnalysisResult,

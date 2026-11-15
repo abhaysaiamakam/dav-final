@@ -59,6 +59,11 @@ def image_inventory(archive: zipfile.ZipFile) -> tuple[list[dict[str, Any]], lis
                 with Image.open(source) as image:
                     record.update({"format": image.format, "width": image.width, "height": image.height, "mode": image.mode})
                     image.verify()
+            # verify() checks structure and invalidates the decoder; reopen and load
+            # all pixels so "valid" means the image was fully decoded successfully.
+            with archive.open(member) as source:
+                with Image.open(source) as image:
+                    image.load()
             record["status"] = "valid"
         except Exception as error:  # Keep failures visible instead of dropping their paths.
             record["status"] = "unreadable"
@@ -66,6 +71,26 @@ def image_inventory(archive: zipfile.ZipFile) -> tuple[list[dict[str, Any]], lis
             errors.append({"relative_path": path.as_posix(), "error": record["error"]})
         records.append(record)
     return records, errors
+
+
+def class_distribution_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Summarize observed directory classes without treating them as verified labels."""
+    class_by_root: dict[str, Counter[str]] = defaultdict(Counter)
+    for item in records:
+        root_name = str(item["top_level_folder"] or "[archive root]")
+        class_by_root[root_name][str(item["class_path"])] += 1
+    total = len(records)
+    return [
+        {
+            "class_path": class_name,
+            "top_level_folder": root_name,
+            "image_count": count,
+            "percentage_of_all_images": round(count * 100 / total, 4) if total else 0.0,
+            "percentage_within_top_level_folder": round(count * 100 / sum(per_class.values()), 4) if per_class else 0.0,
+        }
+        for root_name, per_class in sorted(class_by_root.items())
+        for class_name, count in sorted(per_class.items())
+    ]
 
 
 def exact_duplicate_groups(archive: zipfile.ZipFile, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -215,24 +240,15 @@ def main() -> None:
         root_groups = Counter(str(item["top_level_folder"] or "[archive root]") for item in records)
         category_counts = Counter(str(item["category_folder"] or "[category not encoded]") for item in records)
         split_counts = Counter(item["split"] or "[no explicit split folder]" for item in records)
-        class_by_root: dict[str, Counter[str]] = defaultdict(Counter)
-        for item in records:
-            root_name = str(item["top_level_folder"] or "[archive root]")
-            class_by_root[root_name][str(item["class_path"])] += 1
-        class_distribution = [
-            {
-                "class_path": class_name,
-                "top_level_folder": root_name,
-                "image_count": count,
-                "percentage_of_all_images": round(count * 100 / len(records), 4) if records else 0.0,
-                "percentage_within_top_level_folder": round(count * 100 / sum(class_by_root[root_name].values()), 4) if class_by_root[root_name] else 0.0,
-            }
-            for root_name, per_class in sorted(class_by_root.items())
-            for class_name, count in sorted(per_class.items())
-        ]
+        class_distribution = class_distribution_rows(records)
         sizes = [item["file_size_bytes"] for item in records]
         dimension_counts = Counter(f"{item['width']}x{item['height']}" for item in valid)
         formats = Counter(str(item.get("format") or "unknown") for item in valid)
+        extensions = Counter(str(item.get("extension") or "unknown") for item in records)
+        extension_format_pairs = Counter(
+            f"{item.get('extension') or 'unknown'} → {item.get('format') or 'unknown'}"
+            for item in valid
+        )
         modes = Counter(str(item.get("mode") or "unknown") for item in valid)
         duplicates = exact_duplicate_groups(archive, records)
         pca_rows, pca_summary = color_histogram_features(archive, records)
@@ -252,6 +268,8 @@ def main() -> None:
         "split_folder_counts": dict(sorted(split_counts.items())),
         "split_folder_percentages": {name: round(count * 100 / len(records), 4) for name, count in sorted(split_counts.items())} if records else {},
         "format_counts": dict(sorted(formats.items())),
+        "extension_counts": dict(sorted(extensions.items())),
+        "extension_format_pairs": dict(sorted(extension_format_pairs.items())),
         "image_mode_counts": dict(sorted(modes.items())),
         "dimension_counts": dict(sorted(dimension_counts.items())),
         "file_size_bytes": {

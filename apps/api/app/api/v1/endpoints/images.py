@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 from PIL import Image
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from app.schemas.image_explorer import (
     DatasetImageListResponse,
@@ -11,11 +12,66 @@ from app.schemas.image_explorer import (
     ImagePreprocessingPreviewRequest,
     ImagePreprocessingPreviewResponse,
 )
+from app.schemas.image_intelligence import ImageIntelligenceRequest, ImageIntelligenceResponse
 from app.services.image_explorer_service import image_explorer_service
+from app.services.image_intelligence_service import image_intelligence_service
 from app.services.image_thumbnail_service import image_thumbnail_service
+from app.services.image_visualization_service import render_image_preview
 from app.storage.local import storage_backend
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+@router.get(
+    "/datasets/{dataset_id}/versions/{version_id}/images/{image_id}/visual-preview",
+    summary="Render an analysis preview from an original version image",
+)
+def get_version_image_visual_preview(dataset_id: str, version_id: str, image_id: str, operation: str = Query(..., pattern="^(grayscale|sobel|canny|segmentation)$")) -> Response:
+    try:
+        content = render_image_preview(dataset_id, version_id, image_id, operation)
+        return Response(content=content, media_type="image/png", headers={"Cache-Control": "private, max-age=3600", "X-CropLens-Source-Version": version_id, "X-CropLens-Transform": operation})
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Image not found in this dataset version")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Version-bound visual image preview failed")
+        raise HTTPException(status_code=422, detail=f"Image preview decoder error: {type(exc).__name__}: {exc}")
+
+
+@router.get(
+    "/datasets/{dataset_id}/versions/{version_id}/image-intelligence",
+    response_model=ImageIntelligenceResponse,
+    summary="Retrieve image analysis for a dataset version",
+)
+def get_image_intelligence(dataset_id: str, version_id: str) -> ImageIntelligenceResponse:
+    try:
+        return image_intelligence_service.get_result(dataset_id, version_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="No image analysis exists for this dataset version")
+
+
+@router.post(
+    "/datasets/{dataset_id}/versions/{version_id}/image-intelligence",
+    response_model=ImageIntelligenceResponse,
+    summary="Analyze image quality, visual features, and near duplicates",
+)
+def analyze_image_intelligence(
+    dataset_id: str,
+    version_id: str,
+    request: ImageIntelligenceRequest,
+) -> ImageIntelligenceResponse:
+    try:
+        return image_intelligence_service.analyze(dataset_id, version_id, request)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Dataset version was not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except Exception as exc:
+        # Keep backend detail in logs while returning a stable client response.
+        logger.exception("Image intelligence analysis failed")
+        raise HTTPException(status_code=500, detail="Image intelligence analysis failed")
 
 
 @router.get(
@@ -59,8 +115,9 @@ def get_version_image_thumbnail(
         return FileResponse(path, media_type=mime_type, headers={"Cache-Control": "private, max-age=86400"})
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Image not found in this dataset version")
-    except Exception:
-        raise HTTPException(status_code=422, detail="Image thumbnail could not be generated")
+    except Exception as exc:
+        logger.exception("Version-bound image thumbnail failed")
+        raise HTTPException(status_code=422, detail=f"Thumbnail decoder error: {type(exc).__name__}: {exc}")
 
 
 @router.get("/datasets/{dataset_id}/versions/{version_id}/images/{image_id}")
@@ -83,7 +140,7 @@ def get_version_image_preview(dataset_id: str, version_id: str, image_id: str):
         return FileResponse(path, media_type=mime, headers={"Cache-Control": "private, max-age=3600"})
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Image not found in this dataset version")
-    except Exception:
+    except Exception as exc:
         raise HTTPException(status_code=404, detail="Dataset image is unavailable")
 
 

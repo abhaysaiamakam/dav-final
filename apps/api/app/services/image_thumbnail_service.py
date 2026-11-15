@@ -6,15 +6,16 @@ for large image classification and annotation datasets.
 """
 from __future__ import annotations
 
-import io
 import hashlib
 import logging
+import os
+from threading import get_ident
 from pathlib import Path
 from typing import Optional, Tuple
-from PIL import Image as PILImage
+from PIL import Image as PILImage, ImageOps
 
 from app.core.config import settings
-from app.core.errors import DatasetNotFoundError, InvalidDatasetStateError
+from app.services.safe_image_decoder import THUMBNAIL_DECODE_SLOTS, draft_for_preview, open_image, source_dimensions
 
 logger = logging.getLogger(__name__)
 
@@ -56,23 +57,35 @@ class ImageThumbnailService:
             return thumb_path, "image/jpeg"
 
         # Generate thumbnail
+        temp_path = thumb_dir / f".{cache_key}.{os.getpid()}.{get_ident()}.tmp.jpg"
         try:
-            with PILImage.open(image_path) as img:
-                img = img.convert("RGB")
-                img.thumbnail((max_dim, max_dim), PILImage.Resampling.LANCZOS)
-                img.save(thumb_path, format="JPEG", quality=85, optimize=True)
+            with THUMBNAIL_DECODE_SLOTS:
+                with open_image(image_path) as source:
+                    source_dimensions(source)
+                    draft_for_preview(source, max_dim)
+                    oriented = ImageOps.exif_transpose(source)
+                    thumb = oriented.convert("RGB")
+                    thumb.thumbnail((max_dim, max_dim), PILImage.Resampling.LANCZOS)
+                    thumb.save(temp_path, format="JPEG", quality=85, optimize=True)
+                    thumb.close()
+                os.replace(temp_path, thumb_path)
             return thumb_path, "image/jpeg"
         except Exception as e:
-            logger.error(f"Failed to generate thumbnail for '{relative_image_path}': {e}")
-            raise InvalidDatasetStateError(f"Corrupted image file: {relative_image_path}")
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            logger.error(f"Failed to generate thumbnail for '{relative_image_path}': {type(e).__name__}: {e}")
+            raise ValueError(f"Thumbnail decoding failed ({type(e).__name__}): {e}") from e
 
     def inspect_image_metadata_safe(self, image_path: Path) -> Optional[dict]:
         """Header-only image inspection without decoding full pixel array into memory."""
         if not image_path.is_file():
             return None
         try:
-            with PILImage.open(image_path) as img:
+            with open_image(image_path) as img:
                 width, height = img.size
+                source_dimensions(img)
                 format_name = img.format or "UNKNOWN"
                 mode = img.mode
                 file_bytes = image_path.stat().st_size

@@ -14,7 +14,8 @@ export interface DatasetImage {
   file_size_bytes: number;
   format: string | null;
   color_mode: string | null;
-  status: 'valid' | 'corrupt' | 'unreadable' | string;
+  status: 'valid' | 'corrupt' | 'unreadable' | 'error' | string;
+  error_message?: string | null;
   thumbnail_url: string;
   preview_url: string;
 }

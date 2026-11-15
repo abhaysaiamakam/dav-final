@@ -233,6 +233,11 @@ def test_image_explorer_api_versioned_upload_gallery_preview_and_derived_copy(cl
     full_image = client.get(f"{image_base}/preview")
     assert thumbnail.status_code == 200 and thumbnail.headers["content-type"] == "image/jpeg"
     assert full_image.status_code == 200 and full_image.headers["content-type"] == "image/png"
+    for operation in ("grayscale", "sobel", "canny", "segmentation"):
+        visual = client.get(f"{image_base}/visual-preview", params={"operation": operation})
+        assert visual.status_code == 200 and visual.headers["content-type"] == "image/png", visual.text
+        assert visual.headers["x-croplens-source-version"] == version_id
+        assert len(visual.content) > 0
 
     before = client.post(
         f"{image_base}/preprocessing-preview",

@@ -27,6 +27,7 @@ from app.services.preprocessing.base_operation import BasePreprocessingOperation
 from app.services.preprocessing.image_preprocessing import (
     ConvertColorModeOperation,
     ConvertFormatOperation,
+    AugmentImagesOperation,
     ExcludeCorruptImagesOperation,
     FilterClassesOperation,
     RemoveExactDuplicatesOperation,
@@ -91,6 +92,7 @@ class PreprocessingRegistry:
         self.register(ResizeImagesOperation())
         self.register(ConvertFormatOperation())
         self.register(ConvertColorModeOperation())
+        self.register(AugmentImagesOperation())
         self.register(RemoveExactDuplicatesOperation())
         self.register(ExcludeCorruptImagesOperation())
         self.register(FilterClassesOperation())

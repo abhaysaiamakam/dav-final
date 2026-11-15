@@ -31,6 +31,7 @@ class ValidationStatus(str, Enum):
     CORRUPT = "corrupt"
     UNREADABLE = "unreadable"
     UNSUPPORTED = "unsupported"
+    METADATA_ERROR = "metadata_error"
     ERROR = "error"
 
 
@@ -90,6 +91,7 @@ class DatasetValidationResult(BaseModel):
     total_corrupted_images: int = Field(..., description="Corrupted or malformed images")
     total_unreadable_images: int = Field(..., description="Inaccessible or permission error files")
     total_processing_errors: int = Field(..., description="Unexpected processing error count")
+    total_metadata_errors: int = Field(default=0, description="Image header or metadata parsing failures, separate from corruption")
     total_unsupported_files: int = Field(..., description="Unsupported file formats encountered")
     validation_timestamp: str = Field(..., description="ISO 8601 UTC timestamp of validation")
     dimension_summary: Optional[DimensionSummary] = Field(default=None, description="Aggregate dimension statistics")
@@ -104,6 +106,9 @@ class DuplicateImageMember(BaseModel):
     relative_path: str = Field(..., description="Relative path from dataset root")
     class_name: str = Field(..., description="Class name derived from directory hierarchy")
     file_size_bytes: int = Field(..., description="File size in bytes")
+    width: Optional[int] = Field(default=None, description="Original source image width in pixels")
+    height: Optional[int] = Field(default=None, description="Original source image height in pixels")
+    format: Optional[str] = Field(default=None, description="Decoded source format")
     is_representative: bool = Field(default=False, description="Whether this is the canonical member")
 
 

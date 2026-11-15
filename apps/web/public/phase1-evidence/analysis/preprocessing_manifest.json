@@ -1,0 +1,105 @@
+{
+  "dataset_id": "icar-rice-maize",
+  "version_id": "ver-icar-rice-maize-1-3fe79d16",
+  "source_fingerprint": "3fe79d16489da4538a1bfb6c65b19391c3f9e5d1645e136f72fce5cada88ac35",
+  "analysis_id": "img-d55d4d88b6f2",
+  "analysis_methodology": "image-intelligence-v1.0",
+  "source_path": "Maize/Disease/01_maydis_leaf_blight/01ab80b5-a414-45de-98a6-21cf505ba257.Jpg",
+  "source_sha256": "805d6ebc1eaf3e5bc8dad5a792b6c39dfad832a8c1ae74577927fef946c64ec7",
+  "source_dimensions": [
+    4896,
+    3672
+  ],
+  "preview_dimensions": [
+    512,
+    384
+  ],
+  "dataset_image_count": 852,
+  "dependency_versions": {
+    "python": "3.12.15",
+    "pillow": "13.0.0",
+    "numpy": "2.5.4"
+  },
+  "created_at": "2026-11-14T19:38:16.768485+00:00",
+  "provenance": {
+    "resize": "Pillow LANCZOS, max edge 512",
+    "grayscale": "Pillow RGB-to-L conversion",
+    "hsv": "Pillow HSV channel split; H/S/V shown as channel intensity images",
+    "normalization": "float32 RGB / 255.0; numeric array min/max are included, PNG is inverse-scaled solely for display",
+    "brightness_contrast": "Pillow ImageEnhance brightness 1.2 then contrast 1.2",
+    "augmentation": "CropLens AugmentImagesOperation._transform; seed 42; horizontal_flip then rotate 15 degrees, bicubic",
+    "sobel": "CropLens image_intelligence_service._image_features; 3x3 Sobel gradient kernels with edge padding; display normalized to its 99th percentile",
+    "limitations": "One actual source image is used to illustrate transforms. This is not a dataset-wide preprocessed version or a training result. The original curated image is read only and is never written."
+  },
+  "normalization_range": {
+    "min": 0.0,
+    "max": 1.0,
+    "dtype": "float32"
+  },
+  "sobel_measurements": {
+    "mean_magnitude": 5.943719592381192,
+    "p90_edge_density": 0.10000101725260417
+  },
+  "artifacts": [
+    {
+      "id": "original",
+      "label": "Original selected-version image",
+      "path": "/phase1-evidence/preprocessing/icar-rice-maize/original.png",
+      "method": "display-sized copy for side-by-side comparison"
+    },
+    {
+      "id": "resize",
+      "label": "Resize (max edge 512 px)",
+      "path": "/phase1-evidence/preprocessing/icar-rice-maize/resize-512.png",
+      "method": "LANCZOS, aspect ratio preserved"
+    },
+    {
+      "id": "grayscale",
+      "label": "Grayscale",
+      "path": "/phase1-evidence/preprocessing/icar-rice-maize/grayscale.png",
+      "method": "RGB to luminance (L)"
+    },
+    {
+      "id": "hue",
+      "label": "HSV hue channel",
+      "path": "/phase1-evidence/preprocessing/icar-rice-maize/hue-channel.png",
+      "method": "Actual HSV H channel, grayscale display"
+    },
+    {
+      "id": "saturation",
+      "label": "HSV saturation channel",
+      "path": "/phase1-evidence/preprocessing/icar-rice-maize/saturation-channel.png",
+      "method": "Actual HSV S channel, grayscale display"
+    },
+    {
+      "id": "value",
+      "label": "HSV value channel",
+      "path": "/phase1-evidence/preprocessing/icar-rice-maize/value-channel.png",
+      "method": "Actual HSV V channel, grayscale display"
+    },
+    {
+      "id": "normalized",
+      "label": "Normalized RGB tensor preview",
+      "path": "/phase1-evidence/preprocessing/icar-rice-maize/normalized-display.png",
+      "method": "float32 RGB / 255; display remapped to 8-bit for PNG"
+    },
+    {
+      "id": "brightness-contrast",
+      "label": "Brightness + contrast",
+      "path": "/phase1-evidence/preprocessing/icar-rice-maize/brightness-contrast.png",
+      "method": "brightness 1.2, then contrast 1.2"
+    },
+    {
+      "id": "augmentation",
+      "label": "Deterministic augmentation",
+      "path": "/phase1-evidence/preprocessing/icar-rice-maize/augmentation-flip-rotate.png",
+      "method": "horizontal flip then 15 degree bicubic rotation; seed 42"
+    },
+    {
+      "id": "sobel",
+      "label": "Sobel edge magnitude",
+      "path": "/phase1-evidence/preprocessing/icar-rice-maize/sobel-edge.png",
+      "method": "Production Sobel kernels; percentile display scaling"
+    }
+  ]
+}

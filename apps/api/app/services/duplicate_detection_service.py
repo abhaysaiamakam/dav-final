@@ -163,6 +163,9 @@ class DuplicateDetectionService:
                     relative_path=record.relative_path,
                     class_name=class_name,
                     file_size_bytes=record.file_size_bytes,
+                    width=record.width,
+                    height=record.height,
+                    format=record.format,
                     is_representative=False,
                 )
                 hash_to_members[sha256_hex].append(member)
