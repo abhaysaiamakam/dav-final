@@ -35,14 +35,33 @@ if [[ -z "$TUNNEL_URL" ]]; then
   exit 1
 fi
 
+wait_for_endpoint() {
+  local url="$1"
+  local label="$2"
+  for _ in $(seq 1 30); do
+    if curl -fsS --connect-timeout 5 --max-time 10 "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "$label is not reachable yet: $url" >&2
+  return 1
+}
+
+echo "Waiting for the new Quick Tunnel to become reachable"
+if ! wait_for_endpoint "$TUNNEL_URL/api/v1/health" "Quick Tunnel API"; then
+  echo "Check the tunnel and Docker services with: docker compose --profile public logs -f" >&2
+  exit 1
+fi
+
 echo "Updating the stable CropLens Worker to use $TUNNEL_URL"
 (cd apps/api-proxy && npx --yes wrangler deploy --var "ORIGIN:${TUNNEL_URL}")
 
-if ! curl -fsS --retry 10 --retry-delay 2 "$WORKER_URL/api/v1/health" >/dev/null; then
+if ! wait_for_endpoint "$WORKER_URL/api/v1/health" "Worker API health endpoint"; then
   echo "Worker deployed, but the API health check failed. Check Docker logs with: docker compose logs -f" >&2
   exit 1
 fi
-if ! curl -fsS --retry 10 --retry-delay 2 "$WORKER_URL/phase1" >/dev/null; then
+if ! wait_for_endpoint "$WORKER_URL/phase1" "Worker Phase 1 page"; then
   echo "Worker deployed, but the Phase 1 page check failed. Check Docker logs with: docker compose logs -f" >&2
   exit 1
 fi
