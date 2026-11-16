@@ -30,9 +30,10 @@ type WorkspaceTab = "overview" | "eda" | "quality" | "gallery" | "preprocessing"
 const PAGE_SIZE = 24;
 const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 const TABS: Array<{ id: WorkspaceTab; label: string }> = [
+  { id: "field-survey", label: "Field Survey" },
   { id: "overview", label: "Overview" }, { id: "eda", label: "EDA" }, { id: "quality", label: "Quality" },
   { id: "gallery", label: "Images" }, { id: "preprocessing", label: "Preprocessing" }, { id: "features", label: "Features & PCA" },
-  { id: "insights", label: "Insights" }, { id: "field-survey", label: "Field Survey" }, { id: "code", label: "Python code" },
+  { id: "insights", label: "Insights" }, { id: "code", label: "Python code" },
 ];
 
 function show(value: unknown): string {
@@ -59,7 +60,7 @@ export default function Phase1SubmissionPage() {
   const version = useDatasetVersion(context.selectedId, context.selected?.current_version_id);
   const fileInput = useRef<HTMLInputElement>(null);
   const loadRequestId = useRef(0);
-  const [tab, setTab] = useState<WorkspaceTab>("overview");
+  const [tab, setTab] = useState<WorkspaceTab>("field-survey");
   const [presentation, setPresentation] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -272,7 +273,7 @@ export default function Phase1SubmissionPage() {
         {actionError && <div role="status" className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-950">{actionError}</div>}
         {artifactErrors.length > 0 && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-900"><p className="font-semibold">Some selected-version artifacts could not be loaded</p>{artifactErrors.map((error, index) => <p key={`${index}-${error}`} className="mt-1">{error}</p>)}</div>}
         <nav className="flex gap-1 overflow-x-auto rounded-xl border border-croplens-border bg-white p-1" aria-label="Phase 1 workspace sections">{TABS.map(item => <button key={item.id} type="button" onClick={() => setTab(item.id)} aria-current={tab === item.id ? "page" : undefined} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium ${tab === item.id ? "bg-emerald-700 text-white" : "text-zinc-600 hover:bg-gray-100"}`}>{item.label}</button>)}</nav>
-        {presentation && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-950"><strong>Presentation sequence:</strong> Overview → EDA → Quality → Images → Preprocessing → Feature engineering/PCA → Insights → Field Survey &amp; Problem Understanding → Python code → Conclusions. Historical ZIP evidence and current version-backed API results are shown as separate artifacts.</div>}
+        {presentation && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-950"><strong>Presentation sequence:</strong> Field Survey &amp; Problem Understanding → Overview → EDA → Quality → Images → Preprocessing → Feature engineering/PCA → Insights → Python code → Conclusions. Historical ZIP evidence and current version-backed API results are shown as separate artifacts.</div>}
         <ArchiveEvidenceWorkspace section={tab} presentation={presentation} activeVersion={activeVersion} activeAnalysisTimestamp={eda?.completed_at ?? quality?.completed_at}/>
         {!presentation && showUpload && !context.loading && <DashboardCard title="Select or submit the Phase 1 dataset" icon={<Upload size={17}/>} description="Choose an existing dataset and exact version, or submit an archive within the documented CropLens limit.">
           {context.selected && !selectedPhase1Dataset && <p className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-950">The selected registry record is not identified as the Rice and Maize submission. Choose the Phase 1 dataset record or upload its archive before showing analysis here.</p>}
@@ -329,7 +330,7 @@ export default function Phase1SubmissionPage() {
         <DashboardCard title="Dataset context" icon={<FileImage size={17}/>}><WorkspaceDatasetSelect datasets={context.datasets} value={context.selectedId} onChange={context.select} loading={context.loading}/><div className="mt-2"><WorkspaceVersionSelect versions={version.versions} value={version.versionId} onChange={version.select} loading={version.loading}/></div>{activeVersion && <div className="mt-3 space-y-1 border-t border-zinc-100 pt-3 text-[10px] text-zinc-600"><p>Status <strong>{activeVersion.status}</strong> · {show(validation?.total_validated_images ?? activeVersion.image_count)} valid images · {show(activeVersion.class_count)} classes</p><p>Source <code className="break-all">{activeVersion.storage_relative_path}</code></p><p>Fingerprint <code>{activeVersion.content_fingerprint.slice(0, 12)}…</code></p><p>Last analysis {eda?.completed_at || quality?.completed_at ? new Date(eda?.completed_at ?? quality?.completed_at ?? "").toLocaleString() : "Not completed yet"}</p></div>}</DashboardCard>
         {!presentation && <DashboardCard title="Analysis controls" icon={<Activity size={17}/>}><button onClick={() => void runAnalysis()} disabled={!validVersion || busy} className="w-full rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">{busy ? "Running…" : "Run analysis for this version"}</button><p className="mt-2 text-[10px] text-zinc-500">Runs Quality, EDA, exact duplicate detection, and Insights through CropLens APIs.</p></DashboardCard>}
         <DashboardCard title="Presentation sequence" icon={<Presentation size={17}/>}><ol className="list-inside list-decimal space-y-2 text-xs text-zinc-600">{[
-          ["Dataset overview", "overview"], ["Exploratory analysis", "eda"], ["Data quality", "quality"], ["Image evidence", "gallery"], ["Preprocessing", "preprocessing"], ["Feature engineering and PCA", "features"], ["Evidence-backed insights", "insights"], ["Field Survey & Problem Understanding", "field-survey"], ["Python code", "code"], ["Conclusions", "insights"],
+          ["Field Survey & Problem Understanding", "field-survey"], ["Dataset overview", "overview"], ["Exploratory analysis", "eda"], ["Data quality", "quality"], ["Image evidence", "gallery"], ["Preprocessing", "preprocessing"], ["Feature engineering and PCA", "features"], ["Evidence-backed insights", "insights"], ["Python code", "code"], ["Conclusions", "insights"],
         ].map(([label, id]) => <li key={label}><button onClick={() => { setPresentation(true); setTab(id as WorkspaceTab); window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0); }} className="text-left hover:text-emerald-800">{label}</button></li>)}</ol></DashboardCard>
         <DashboardCard title="Source code roles" icon={<Code2 size={17}/>}><p className="text-xs leading-relaxed text-zinc-600"><strong>Python Analysis</strong> is a runnable local archive analysis script. <strong>CodeLens</strong> points to the production API algorithm and frontend rendering path. These are not represented as the same implementation.</p><div className="mt-3 flex flex-wrap gap-2 text-[10px]"><Link href="/quality" className="rounded border border-croplens-border px-2 py-1">Quality</Link><Link href="/eda" className="rounded border border-croplens-border px-2 py-1">EDA</Link><Link href="/preprocessing" className="rounded border border-croplens-border px-2 py-1">Preprocessing</Link><Link href="/features" className="rounded border border-croplens-border px-2 py-1">Features</Link></div></DashboardCard>
       </aside>}

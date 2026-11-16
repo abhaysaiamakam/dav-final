@@ -38,9 +38,21 @@ fi
 wait_for_endpoint() {
   local url="$1"
   local label="$2"
+  local host="${url#https://}"
+  host="${host%%/*}"
+  local ip
   for _ in $(seq 1 30); do
-    if curl -fsS --connect-timeout 5 --max-time 10 "$url" >/dev/null 2>&1; then
-      return 0
+    if [[ "$host" == *.trycloudflare.com ]]; then
+      while IFS= read -r ip; do
+        [[ -n "$ip" ]] || continue
+        if curl -fsS --connect-timeout 5 --max-time 10 --resolve "$host:443:$ip" "$url" >/dev/null 2>&1; then
+          return 0
+        fi
+      done < <(dig +short "$host" A 2>/dev/null | awk '/^[0-9.]+$/')
+    else
+      if curl -fsS --connect-timeout 5 --max-time 10 "$url" >/dev/null 2>&1; then
+        return 0
+      fi
     fi
     sleep 2
   done
