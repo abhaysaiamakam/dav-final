@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Activity, BarChart3, BookOpen, FileImage, FlaskConical, Images, ShieldCheck } from "lucide-react";
 import type { DatasetVersion } from "@croplens/shared-types";
 
-type Section = "overview" | "eda" | "quality" | "gallery" | "preprocessing" | "features" | "insights" | "code";
+type Section = "overview" | "eda" | "quality" | "gallery" | "preprocessing" | "features" | "insights" | "field-survey" | "code";
 type ClassRow = { class_path: string; top_level_folder: string; image_count: number; percentage_of_all_images: number; percentage_within_top_level_folder: number };
 type ImageSample = { class_path: string; relative_path: string; width: number; height: number; file_size_bytes: number; format: string; mode: string; preview: string };
 type DuplicateGroup = { group: number; sha256: string; members: Array<{ relative_path: string; preview: string }> };
@@ -26,7 +26,7 @@ type Report = {
 };
 
 const sections: Section[] = ["overview", "eda", "quality", "gallery", "preprocessing", "features", "insights"];
-const labels: Record<Section, string> = { overview: "Dataset overview", eda: "EDA", quality: "Image quality", gallery: "Image evidence", preprocessing: "Preprocessing", features: "Features & PCA", insights: "Insights & conclusions", code: "Python code" };
+const labels: Record<Section, string> = { overview: "Dataset overview", eda: "EDA", quality: "Image quality", gallery: "Image evidence", preprocessing: "Preprocessing", features: "Features & PCA", insights: "Insights & conclusions", "field-survey": "Field Survey", code: "Python code" };
 const compact = (value: number) => new Intl.NumberFormat().format(value);
 const percent = (value: number) => `${value.toFixed(2)}%`;
 const MiB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
